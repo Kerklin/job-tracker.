@@ -1,6 +1,6 @@
 # My jobs – Damir Hadžić
 
-**12 open jobs** · checked automatically every 5 minutes · last new job found: 2026-10-05
+**12 open jobs** · checked every 5 minutes · 🌐 **[Open the web page](https://kerklin.github.io/job-tracker_v_7.1./)**
 
 🆕 = found in the last 2 days · 🔴 = 7 days or less left
 
