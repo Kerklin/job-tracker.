@@ -1,6 +1,8 @@
 # =====================================================================
-#  JOB AGENT v7 – Damir Hadžić  ·  ONE file  ·  checks every 5 minutes
-#  Your job list appears on the front page of this repository.
+#  JOB AGENT v7.1 – Damir Hadžić  ·  ONE file  ·  checks every 5 minutes
+#  Your jobs appear in 2 places:
+#    1. the front page of this repository (table)
+#    2. a web page: https://YOUR-USERNAME.github.io/job-tracker/
 #  The only thing you edit: the FEEDS list below.
 #  One link per line, under the "Paste" line, starting at the same position.
 # =====================================================================
@@ -24,6 +26,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: job-search
@@ -32,7 +36,10 @@ concurrency:
 jobs:
   search:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
 
@@ -40,7 +47,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import html, json, os, re, sys, urllib.request, xml.etree.ElementTree as ET
-          from datetime import date
+          from datetime import date, datetime, timezone
           from pathlib import Path
 
           FEEDS = [l.strip().strip("'\",").strip() for l in os.environ.get("FEEDS", "").splitlines()]
@@ -124,7 +131,7 @@ jobs:
           if not working: log.append("No feed worked: add a Google Alerts RSS link at the top of the workflow file.")
           file.write_text(json.dumps(jobs, ensure_ascii=False, indent=1), encoding="utf-8")
 
-          # ---- README = the job list shown on the repository's front page (changes only when jobs or days-left change) ----
+          # ---- 1. README: the table on the repository's front page ----
           def days(j): return (date.fromisoformat(j["deadline"]) - TODAY).days if j["deadline"] else None
           FIT = {"High": "🟢 High", "Medium": "🟡 Medium", "Low": "⚪ Low"}
           def row(j):
@@ -135,13 +142,45 @@ jobs:
           open_ = sorted([j for j in jobs if days(j) is None or days(j) >= 0], key=lambda j: (days(j) is None, days(j) or 0))
           closed = [j for j in jobs if days(j) is not None and days(j) < 0]
           H = "| Job | Employer · place | Deadline | Left | Fit |\n|---|---|---|---|---|\n"
+          repo = os.environ.get("GITHUB_REPOSITORY", "user/job-tracker")
+          web = f"https://{repo.split('/')[0].lower()}.github.io/{repo.split('/')[1]}/"
           out = [f"# My jobs – Damir Hadžić\n",
-                 f"**{len(open_)} open jobs** · checked automatically every 5 minutes · last new job found: "
-                 f"{max(j['found'] for j in jobs)}\n",
+                 f"**{len(open_)} open jobs** · checked every 5 minutes · 🌐 **[Open the web page]({web})**\n",
                  "🆕 = found in the last 2 days · 🔴 = 7 days or less left\n", H + "\n".join(row(j) for j in open_) + "\n"]
           if closed:
               out.append(f"<details><summary>Closed ({len(closed)})</summary>\n\n" + H + "\n".join(row(j) for j in closed) + "\n\n</details>\n")
           Path("README.md").write_text("\n".join(out), encoding="utf-8")
+
+          # ---- 2. Web page (same jobs, with search and an Applied tick box) ----
+          PAGE = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta http-equiv="refresh" content="300"><title>My jobs</title><style>
+          body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f4f6f9;color:#222}header{background:#1c4e80;color:#fff;padding:14px 18px}
+          h1{margin:0;font-size:19px}small{opacity:.85}main{padding:12px 18px;max-width:950px}
+          input,select{font:inherit;padding:7px 10px;border:1px solid #c8d1dc;border-radius:6px;margin:0 6px 10px 0}
+          .c{background:#fff;border-radius:8px;padding:11px 13px;margin-bottom:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+          .c .t{flex:1 1 260px}.c a{font-weight:600;color:#1c4e80;text-decoration:none}.m{color:#667;font-size:13px}
+          .p{font-size:12px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap}.High{background:#c6efce}.Medium{background:#fff2cc}.Low{background:#e7e7e7}
+          .u{background:#f8cbad;color:#9c0006}.o{background:#e2efda}.v{background:#fff2cc}.n{background:#ffd966}.d{opacity:.5}pre{white-space:pre-wrap;font-size:12px}
+          </style></head><body><header><h1>My jobs – Damir Hadžić</h1><small>Last checked __TIME__ · checks every 5 minutes · page reloads itself</small></header><main>
+          <input id="q" placeholder="Search…"><select id="v"><option value="t">To do</option><option value="a">Applied</option><option value="all">All</option></select>
+          <div id="l"></div><details><summary class="m">Search log</summary><pre>__LOG__</pre></details></main><script>
+          const J=__JOBS__,$=i=>document.getElementById(i),T=new Date().toISOString().slice(0,10);
+          let st={};try{st=JSON.parse(localStorage.getItem("st"))||{}}catch(e){}
+          const k=j=>(j.link||j.title).toLowerCase(),e=s=>String(s||"").replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
+          const dl=d=>d?Math.round((new Date(d)-new Date(T))/864e5):null,age=d=>(new Date(T)-new Date(d))/864e5;
+          function r(){const q=$("q").value.toLowerCase(),v=$("v").value;
+          const L=J.filter(j=>(j.title+j.info).toLowerCase().includes(q)).filter(j=>{const a=st[k(j)],d=dl(j.deadline);
+          return v=="all"||(v=="a"?a:!a&&(d===null||d>=0))}).sort((a,b)=>(a.deadline||"9").localeCompare(b.deadline||"9"));
+          $("l").innerHTML=L.map(j=>{const d=dl(j.deadline),a=st[k(j)],h=/^https?:/.test(j.link||"");
+          const tag=d===null?'<span class="p v">check deadline</span>':d<0?'<span class="p">closed</span>':`<span class="p ${d<=7?"u":"o"}">${d} days left</span>`;
+          return `<div class="c ${a?"d":""}"><div class="t">${h?`<a href="${e(j.link)}" target="_blank" rel="noopener">${e(j.title)}</a>`:e(j.title)}
+          ${age(j.found)<=2?'<span class="p n">NEW</span>':""}<div class="m">${e(j.info)}</div></div><span class="p ${e(j.fit)}">${e(j.fit)}</span>${tag}
+          <label class="m"><input type="checkbox" data-k="${e(k(j))}" ${a?"checked":""}> Applied</label></div>`}).join("")||'<p class="m">Nothing here.</p>'}
+          $("l").onchange=x=>{st[x.target.dataset.k]=x.target.checked;localStorage.setItem("st",JSON.stringify(st));r()};$("q").oninput=$("v").onchange=r;r();
+          </script></body></html>"""
+          Path("site").mkdir(exist_ok=True)
+          Path("site/index.html").write_text(PAGE.replace("__JOBS__", json.dumps(jobs, ensure_ascii=False).replace("</", "<\\/"))
+              .replace("__TIME__", datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")).replace("__LOG__", html.escape("\n".join(log))), encoding="utf-8")
           print("\n".join(log))
           PY
 
@@ -157,3 +196,10 @@ jobs:
             sleep 5
           done
           exit 1
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5
