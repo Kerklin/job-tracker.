@@ -10,6 +10,7 @@ name: Job search
 env:
   FEEDS: |
         # Paste each new link on its own line under this one:
+        https://www.google.com/alerts/feeds/07122033372245260923/2138066189446356004
         https://reliefweb.int/jobs/rss.xml?search=construction
         https://reliefweb.int/jobs/rss.xml?search=infrastructure
         https://reliefweb.int/jobs/rss.xml?search=shelter
