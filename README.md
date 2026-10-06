@@ -1,4 +1,4 @@
-# My jobs – Damir Hadžić
+# My jobs – DH
 
 **12 open jobs** · checked every 5 minutes · 🌐 **[Open the web page](https://kerklin.github.io/job-tracker_v_7.1./)**
 
